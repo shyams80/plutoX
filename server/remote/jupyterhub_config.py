@@ -2,6 +2,7 @@
 
 from oauthenticator.github import LocalGitHubOAuthenticator
 from tornado import gen
+import os
 
 class GitHubEnvAuthenticator(LocalGitHubOAuthenticator):
 	@gen.coroutine
@@ -16,7 +17,7 @@ class GitHubEnvAuthenticator(LocalGitHubOAuthenticator):
 		# define some environment variables from auth_state
 		spawner.environment['GITHUB_TOKEN'] = auth_state['access_token']
 		spawner.environment['GITHUB_USER'] = auth_state['github_user']['login']
-		spawner.environment['MONGO_PASS'] = "stockviz$9"
+		spawner.environment['MONGO_PASS'] = os.environ['MONGO_PASS']
 
 c.JupyterHub.authenticator_class = GitHubEnvAuthenticator
 
