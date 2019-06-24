@@ -3,6 +3,7 @@ define(['base/js/namespace', 'base/js/utils'], function(Jupyter, utils) {
 
         var handler = function () {
 	    Jupyter.notebook.save_notebook(false);
+            Jupyter.notebook.restart_clear_output({confirm: false});
 	    var payload = {};
             payload.notebook = Jupyter.notebook.notebook_path;
 
