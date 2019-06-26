@@ -16,10 +16,13 @@ import urllib.request
 from bson.objectid import ObjectId
 from bson.binary import Binary
 from time import sleep
+from ipykernel.comm import Comm
 
 class RequestHandler(IPythonHandler):
 
     def post(self):
+        statusMsgComm = Comm(target_name='', data='started')
+
         curUser = self.get_current_user()
         userName = curUser['name']
         
