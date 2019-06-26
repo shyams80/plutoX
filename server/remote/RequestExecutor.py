@@ -103,6 +103,7 @@ class RequestHandler(IPythonHandler):
             statusMsg["finished"] = True;
             self.finish(statusMsg)
         except Exception as exp:
+            print(exp)
             statusMsg["text"] = str(exp)
             statusMsg["ok"] = False
             self.finish(statusMsg)

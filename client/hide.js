@@ -73,6 +73,8 @@ define(['base/js/namespace', 'base/js/utils'], function(Jupyter, utils) {
 
         var full_action_name = Jupyter.actions.register(action, action_name, prefix); // returns 'my_extension:show-alert'
         Jupyter.toolbar.add_buttons_group([full_action_name]);
+
+	Jupyter.notebook.set_autosave_interval(0);
 	$("li[id*=run_]").each(function(){
 		$(this).hide();
 	});
