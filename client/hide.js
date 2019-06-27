@@ -1,25 +1,63 @@
+function getXsrfToken(){
+    var name = '_xsrf';
+    var r = document.cookie.match("\\b" + name + "=([^;]*)\\b");
+    return r ? r[1] : undefined;
+}
+
 define(['base/js/namespace', 'base/js/utils'], function(Jupyter, utils) {
     function load_ipython_extension() {
 
         var handler = function () {
 	    Jupyter.notebook.save_notebook(false);
+            Jupyter.notebook.restart_clear_output({confirm: false});
 	    var payload = {};
             payload.notebook = Jupyter.notebook.notebook_path;
 
-	    var success = function(data){
-		if(data.resp == "success"){
-			location.reload();
-                }
-	    };
-	    var error = function(err) { console.log(err); } ;
-	    utils.ajax(Jupyter.notebook.base_url + "/plutoEx", {
+	    var error = err => { 
+                console.log("ERROR: " + err); 
+            } ;
+
+            var xsrf_token = getXsrfToken();
+            var lastResponseLength = false;
+
+            //modified from: https://gist.github.com/sohelrana820/63f029d3aa12936afbc50eb785c496c0
+	    $.ajax(Jupyter.notebook.base_url + "/plutoEx", {
 		type: "POST",
 		cache: false,
-		dataType: "json",
-		success: success,
+		dataType: "text",
+		success: data => {},
 		error: error,
 		data: JSON.stringify(payload),
-		contentType: 'application/json'
+		contentType: 'application/json',
+                headers: {
+                    'X-XSRFToken': xsrf_token
+                },
+                processData: false,
+                xhrFields: {
+                    onprogress: function(e){
+                        var progressResponse;
+                        var response = e.currentTarget.response;
+                        if(lastResponseLength === false){
+                            progressResponse = response;
+                            lastResponseLength = response.length;
+                        } else {
+                            progressResponse = response.substring(lastResponseLength);
+                            lastResponseLength = response.length;
+                        }
+                        //console.log("STATUS: " + progressResponse);
+                        var parsedResponse = JSON.parse(progressResponse);
+
+                        if (parsedResponse.ok) {
+                            Jupyter.notification_area.widget_dict["notebook"].info(parsedResponse.text);
+                            if (parsedResponse.finished){
+                                location.reload();
+                            }
+                        } else {
+                            Jupyter.notification_area.widget_dict["notebook"].danger("Error!");
+                            console.log(parsedResponse.text);
+                        }
+                    }
+                }
 	    });
         };
 
@@ -35,6 +73,8 @@ define(['base/js/namespace', 'base/js/utils'], function(Jupyter, utils) {
 
         var full_action_name = Jupyter.actions.register(action, action_name, prefix); // returns 'my_extension:show-alert'
         Jupyter.toolbar.add_buttons_group([full_action_name]);
+
+	Jupyter.notebook.set_autosave_interval(0);
 	$("li[id*=run_]").each(function(){
 		$(this).hide();
 	});

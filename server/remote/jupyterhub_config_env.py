@@ -2,6 +2,10 @@
 
 from oauthenticator.github import LocalGitHubOAuthenticator
 from tornado import gen
+import os
+import sys
+
+sys.path.append("/usr/share/jupyter/server_extensions")
 
 class GitHubEnvAuthenticator(LocalGitHubOAuthenticator):
 	@gen.coroutine
@@ -16,11 +20,11 @@ class GitHubEnvAuthenticator(LocalGitHubOAuthenticator):
 		# define some environment variables from auth_state
 		spawner.environment['GITHUB_TOKEN'] = auth_state['access_token']
 		spawner.environment['GITHUB_USER'] = auth_state['github_user']['login']
-		spawner.environment['MONGO_PASS'] = "stockviz$9"
+		spawner.environment['MONGO_PASS'] = os.environ['MONGO_PASS']
 
 c.JupyterHub.authenticator_class = GitHubEnvAuthenticator
 
-c.GitHubEnvAuthenticator.oauth_callback_url = 'http://fiasco:8000/hub/oauth_callback'
+c.GitHubEnvAuthenticator.oauth_callback_url = 'http://pluto.studio/hub/oauth_callback'
 c.GitHubEnvAuthenticator.client_id = '8643d1dfef4a19cb2c54'
 c.GitHubEnvAuthenticator.client_secret = '44b66ae72d78f5bcf7508a6186e1038f5e28880a'
 c.GitHubEnvAuthenticator.scope = ['openid', 'user:email', 'public_repo']
@@ -120,7 +124,7 @@ c.GitHubEnvAuthenticator.create_system_users = True
 ## The public facing URL of the whole JupyterHub application.
 #  
 #  This is the address on which the proxy will bind. Sets protocol, ip, base_url
-#c.JupyterHub.bind_url = 'http://:8000'
+c.JupyterHub.bind_url = 'http://'
 
 ## Whether to shutdown the proxy when the Hub shuts down.
 #  
