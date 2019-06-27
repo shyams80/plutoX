@@ -32,6 +32,23 @@ def getOutputLength(nbFileName):
 
     return textLength
 
+def insertRef(nbFileName):
+    nbDoc = nbformat.read(nbFileName, as_version=4)
+    nbCells = nbDoc['cells']
+    markdownCells = [x for x in nbCells if x['cell_type'] == 'markdown']
+    
+    hasRef = False
+    for mdc in markdownCells:
+        print (mdc['source'])
+        if 'pluto' in mdc['source']:
+            hasRef = True
+            break
+
+    if not hasRef:
+        outObj = nbformat.NotebookNode(cell_type='markdown', metadata={}, source=["This notebook was created using [pluto](http://pluto.studio). Learn more [here](https://github.com/shyams80/pluto)"])
+        nbCells.append(outObj)
+        nbformat.write(nbDoc, nbFileName, version=4)
+
 def loop():
     request = db.q.find_one({'isProcessed': False})
     if request == None:
@@ -53,6 +70,8 @@ def loop():
     tempFileName = fullPath[fullPath.rfind('/')+1:]
     with open(tempFileName, mode='wb') as file:
         file.write(notebook)
+
+    insertRef(tempFileName)
 
     subprocess.run(shlex.split("ufw deny out to any port 443"), env=os.environ, errors=True)
     cmdLine = f"jupyter nbconvert --to notebook --execute {tempFileName} --inplace --allow-errors"
