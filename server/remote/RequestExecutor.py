@@ -9,6 +9,7 @@ import gzip
 import platform
 
 from github import Github
+from github import GithubException, UnknownObjectException
 import pymongo
 from datetime import datetime
 import urllib.parse
@@ -49,8 +50,15 @@ class RequestHandler(IPythonHandler):
             fullPath = jbody['notebook']
 
             existingFile = None
+            tooBig = False
             try:
                 existingFile = repo.get_contents(fullPath)
+            except UnknownObjectException:
+                pass
+            except GithubException as exp:
+                print(exp)
+                if exp.data["errors"][0]['code'] == 'too_large':
+                    tooBig = True
             except:
                 pass
 
@@ -59,11 +67,12 @@ class RequestHandler(IPythonHandler):
             with open(fullPath, mode='rb') as file:
                 fileContent = file.read()
         
-            if existingFile == None:
-                repo.create_file(f"{fullPath}", "request", fileContent)
-            else:
-                print(existingFile.sha)
-                repo.update_file(f"{fullPath}", "request", fileContent, existingFile.sha)
+            if not tooBig:
+                if existingFile == None:
+                    repo.create_file(f"{fullPath}", "request", fileContent)
+                else:
+                    print(existingFile.sha)
+                    repo.update_file(f"{fullPath}", "request", fileContent, existingFile.sha)
         
             mongoPass = urllib.parse.quote_plus(os.environ['MONGO_PASS'])
             client = pymongo.MongoClient(f"mongodb+srv://explorer:{mongoPass}@cluster0-eyzcm.mongodb.net/test?retryWrites=true&w=majority")
