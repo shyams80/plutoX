@@ -40,7 +40,7 @@ def insertRef(nbFileName):
     hasRef = False
     for mdc in markdownCells:
         print (mdc['source'])
-        if 'pluto' in mdc['source']:
+        if 'pluto.studio' in mdc['source']:
             hasRef = True
             break
 
@@ -48,6 +48,22 @@ def insertRef(nbFileName):
         outObj = nbformat.NotebookNode(cell_type='markdown', metadata={}, source=["This notebook was created using [pluto](http://pluto.studio). Learn more [here](https://github.com/shyams80/pluto)"])
         nbCells.append(outObj)
         nbformat.write(nbDoc, nbFileName, version=4)
+
+def upsertGithub(fullPath, repo):
+    with open(fullPath, mode='rb') as file:
+        outFileContent = file.read()
+
+    try:
+        fileContent = repo.get_contents(fullPath)
+        repo.update_file(fullPath, "response", outFileContent, fileContent.sha)
+    except Exception as exp:
+        if exp.status == 404:
+            try:
+                repo.create_file(fullPath, "response", outFileContent)
+            except Exception as exp:
+                print("Error creating file: " + fullPath)
+                print(exp)
+
 
 def loop():
     request = db.q.find_one({'isProcessed': False})
@@ -64,8 +80,6 @@ def loop():
     qId = ObjectId(request['_id'])
     fullPath = request['file']
     notebook = gzip.decompress(request['notebook'])
-
-    fileContent = repo.get_contents(fullPath)
 
     tempFileName = fullPath[fullPath.rfind('/')+1:]
     with open(tempFileName, mode='wb') as file:
@@ -99,9 +113,28 @@ def loop():
     with open(tempFileName, mode='rb') as file:
         outFileContent = file.read()
 
+    tooBig = False
     subprocess.run(shlex.split("ufw allow out to any port 443"), env=os.environ, errors=True)
-    repo.update_file(fullPath, "response", outFileContent, fileContent.sha)
+    try:
+        fileContent = repo.get_contents(fullPath)
+        repo.update_file(fullPath, "response", outFileContent, fileContent.sha)
+    except Exception as exp:
+        print(exp)
+        if exp.data["errors"][0]['code'] == 'too_large':
+            tooBig = True
     subprocess.run(shlex.split("ufw deny out to any port 443"), env=os.environ, errors=True)
+
+    if tooBig:
+        cmdLine = f"jupyter nbconvert --to markdown --execute {tempFileName} --allow-errors"
+        cpi = subprocess.run(shlex.split(cmdLine), env=os.environ, errors=True)
+        filePattern = tempFileName.replace(".ipynb", "")
+
+        subprocess.run(shlex.split("ufw allow out to any port 443"), env=os.environ, errors=True)
+        upsertGithub(filePattern + ".md", repo)
+        for fname in os.listdir(filePattern + "_files"):
+            upsertGithub(filePattern + "_files/" + fname, repo)
+
+        subprocess.run(shlex.split("ufw deny out to any port 443"), env=os.environ, errors=True)
 
     os.remove(tempFileName)
 
