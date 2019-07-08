@@ -389,7 +389,13 @@ c.JupyterHub.bind_url = 'http://'
 #              'environment':
 #          }
 #      ]
-#c.JupyterHub.services = []
+c.JupyterHub.services = [
+    {
+        'name': 'cull_idle',
+        'admin': True,
+        'command': [sys.executable, 'plutoX/server/remote/cull_idle_servers.py']
+    }
+]
 
 ## The class to use for spawning single-user servers.
 #  
