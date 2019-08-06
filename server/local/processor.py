@@ -13,6 +13,7 @@ from time import sleep
 
 print("starting processor....")
 
+plutoPath = "/home/pluto/"
 mongoPass = urllib.parse.quote_plus(os.environ['MONGO_PASS'])
 client = pymongo.MongoClient(f"mongodb+srv://explorer:{mongoPass}@cluster0-eyzcm.mongodb.net/test?retryWrites=true&w=majority")
 db = client.plutoQ
@@ -77,24 +78,30 @@ def loop():
     user = githubAcc.get_user()
     repo = user.get_repo("plutons")
 
+    githubUserName = request['githubUser']
+    print(f"processing for: {githubUserName}")
+
     qId = ObjectId(request['_id'])
     fullPath = request['file']
     notebook = gzip.decompress(request['notebook'])
 
-    tempFileName = fullPath[fullPath.rfind('/')+1:]
+    tempFileName = plutoPath + fullPath[fullPath.rfind('/')+1:]
+    print(tempFileName)
     with open(tempFileName, mode='wb') as file:
         file.write(notebook)
+
+    subprocess.run(shlex.split(f"chmod 666 {tempFileName}"), env=os.environ, errors=True)
 
     insertRef(tempFileName)
 
     subprocess.run(shlex.split("ufw deny out to any port 443"), env=os.environ, errors=True)
-    cmdLine = f"jupyter nbconvert --to notebook --execute {tempFileName} --inplace --allow-errors"
+    cmdLine = f"sudo -E -H -u pluto jupyter nbconvert --to notebook --execute {tempFileName} --inplace --allow-errors"
     cpi = subprocess.run(shlex.split(cmdLine), env=os.environ, errors=True)
 
     textLength = getOutputLength(tempFileName)
     print(f"total output length: {textLength}")
 
-    if textLength > 10000:
+    if githubUserName != 'shyams80' and textLength > 10000:
         cmdLine = f"jupyter nbconvert --ClearOutputPreprocessor.enabled=True --inplace {tempFileName}"
         cpi = subprocess.run(shlex.split(cmdLine), env=os.environ, errors=True)
         nbDoc = nbformat.read(tempFileName, as_version=4)
@@ -125,7 +132,7 @@ def loop():
     subprocess.run(shlex.split("ufw deny out to any port 443"), env=os.environ, errors=True)
 
     if tooBig:
-        cmdLine = f"jupyter nbconvert --to markdown --execute {tempFileName} --allow-errors"
+        cmdLine = f"sudo -E -H -u pluto jupyter nbconvert --to markdown --execute {tempFileName} --allow-errors"
         cpi = subprocess.run(shlex.split(cmdLine), env=os.environ, errors=True)
         filePattern = tempFileName.replace(".ipynb", "")
 
