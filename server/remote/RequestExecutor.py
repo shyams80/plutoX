@@ -59,7 +59,8 @@ class RequestHandler(IPythonHandler):
                 print(exp)
                 if exp.data["errors"][0]['code'] == 'too_large':
                     tooBig = True
-            except:
+            except Exception as exp:
+                print(exp)
                 pass
 
             cmdLine = f"jupyter nbconvert --ClearOutputPreprocessor.enabled=True --inplace {fullPath}"
