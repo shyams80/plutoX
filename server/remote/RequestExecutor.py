@@ -7,6 +7,7 @@ import subprocess
 import shlex
 import gzip
 import platform
+import pprint
 
 from github import Github
 from github import GithubException, UnknownObjectException
@@ -56,12 +57,16 @@ class RequestHandler(IPythonHandler):
             except UnknownObjectException:
                 pass
             except GithubException as exp:
-                print(exp)
-                if exp.data["errors"][0]['code'] == 'too_large':
-                    tooBig = True
+                pprint.pprint(exp)
+                try:
+                    if exp.data["errors"][0]['code'] == 'too_large':
+                        tooBig = True
+                except:
+                    pass
             except Exception as exp:
-                print(exp)
+                #print(exp)
                 pass
+                
 
             cmdLine = f"jupyter nbconvert --ClearOutputPreprocessor.enabled=True --inplace {fullPath}"
             cpi = subprocess.run(shlex.split(cmdLine), env=os.environ, errors=True)
