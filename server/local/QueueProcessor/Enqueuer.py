@@ -47,7 +47,7 @@ enqueuer = Enqueuer()
 while True:
     try:
         enqueuer.Loop()
-        #enqueuer.Cleanup()
+        enqueuer.Cleanup()
         print(datetime.now())
     except Exception as exp:
         print(exp)

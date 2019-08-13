@@ -31,10 +31,10 @@ class ContainerManager:
             if len(templates) == 0:
                 goose = self.client.containers.get('goose')
                 if goose.state().status_code != 102:
-                    goose.stop()
+                    goose.stop(wait=True)
                 template = goose.publish(public = True, wait = True)
                 template.add_alias('goose', 'lays golden eggs')
-                goose.start()
+                goose.start(wait=True)
             else:
                 template = templates[0]
     
@@ -50,6 +50,7 @@ class ContainerManager:
             
             egg = self.client.containers.create(dna, wait=True)
             egg.start(wait=True)
+            
 
         #update the hosts file
         hosts = "127.0.0.1 localhost\n"
@@ -59,10 +60,9 @@ class ContainerManager:
             
         egg.files.put("/etc/hosts", hosts)
         
-        #copy the processor
-        with open("../ProcessorLxd.py", "r") as f:
-            content = f.read()
-            egg.files.put("/home/pluto/ProcessorLxd.py", content)
+        #setup the firewall
+        ret = egg.execute(["/root/start.sh"])
+        print(ret.exit_code)
         
         return egg
 
