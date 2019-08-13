@@ -66,7 +66,7 @@ class Spawner:
         user = githubAcc.get_user()
         self.repo = user.get_repo("plutons")
         
-        self.plutoPath = "~/notebook-temp/" + meta['id'] + "/"
+        self.plutoPath = "/home/pluto/notebook-temp/" + meta['id'] + "/"
         
         try:
             os.makedirs(self.plutoPath)
@@ -75,15 +75,20 @@ class Spawner:
         
         fullPath = request['file']
         notebook = gzip.decompress(request['notebook'])
+        
+        githubFileName = fullPath[fullPath.rfind('/')+1:]
     
-        self.nbFileName = self.plutoPath + fullPath[fullPath.rfind('/')+1:]
+        self.nbFileName = self.plutoPath + githubFileName
         print(f"processing notebook: {self.nbFileName}")
         with open(self.nbFileName, mode='wb') as file:
             file.write(notebook)
             
+        cmdLine = f"jupyter nbconvert --ClearOutputPreprocessor.enabled=True --inplace {self.nbFileName}"
+        subprocess.run(shlex.split(cmdLine), env=os.environ, errors=True)
+            
         self.insertRef()
         
-        egg.files.recursive_put(self.plutoPath, f"/home/pluto/")
+        egg.files.recursive_put(self.plutoPath, "/home/pluto/")
         
         #with open(self.nbFileName, "rb") as f:
         #    content = f.read()
@@ -91,10 +96,14 @@ class Spawner:
             
     
         print(f"executing in egg")
-        ret = egg.execute(shlex.split(f"jupyter nbconvert --to notebook --execute /home/pluto/{self.nbFileName} --inplace --allow-errors"))
+        ret = egg.execute(shlex.split(f"jupyter nbconvert --to notebook --execute /home/pluto/{githubFileName} --inplace --allow-errors"))
         print(ret.exit_code)
         
-        egg.files.get(f"/home/pluto/{self.nbFileName}", self.nbFileName)
+        resp = egg.files.get(f"/home/pluto/{githubFileName}")
+        with open(self.nbFileName, mode='wb') as file:
+            file.write(resp)
+        
+        egg.files.delete(f"/home/pluto/{githubFileName}")
         
         textLength = self.getOutputLength()
         print(f"total output length: {textLength}")
@@ -151,5 +160,5 @@ def Spawn(meta):
     spawn.Execute(meta)
     
 
-meta = {'id': '5d526abde7ccfb4adf63d359', 'githubUser': 'shyams80'}
-Spawn(meta)
+#meta = {'id': '5d526abde7ccfb4adf63d359', 'githubUser': 'shyams80'}
+#Spawn(meta)

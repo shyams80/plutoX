@@ -5,7 +5,8 @@ import Config
 class ContainerManager:
     def __init__(self):
         self.config = Config.Config()
-        self.client = pylxd.Client(endpoint=self.config['DEFAULT']['LXD_URL'], cert=(self.config['DEFAULT']['LXD_CERT'], self.config['DEFAULT']['LXD_KEY']), verify=False)
+        #self.client = pylxd.Client(endpoint=self.config['DEFAULT']['LXD_URL'], cert=(self.config['DEFAULT']['LXD_CERT'], self.config['DEFAULT']['LXD_KEY']), verify=False)
+        self.client = pylxd.Client()
         #client.authenticate('ferrari')
         
         
