@@ -87,6 +87,7 @@ class RequestHandler(IPythonHandler):
             reqId = db.q.insert_one({ 'file': f"{fullPath}", 
                                   'createdOn': datetime.now(), 
                                   'isProcessed': False, 
+								  'isEnqueued': False,
                                   'notebook': Binary(gzip.compress(fileContent)), 
                                   'githubTok': githubToken,
                                   'githubUser': githubUserName,
