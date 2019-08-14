@@ -20,14 +20,20 @@ from bson.binary import Binary
 from time import sleep
 
 class RequestHandler(IPythonHandler):
-
-    def post(self):
+    def status(self, text, finished = False, ok = True):
         statusMsg = {}
-        statusMsg["finished"] = False;
-        statusMsg["text"] = "starting..."
-        statusMsg["ok"] = True;
-        self.write(statusMsg)
-        self.flush()
+        statusMsg["finished"] = finished
+        statusMsg["text"] = text
+        statusMsg["ok"] = ok
+        
+        if finished:
+            self.finish(statusMsg)
+        else:
+            self.write(statusMsg)
+            self.flush()
+	
+    def post(self):
+        self.status("starting...")
 
         try:
             curUser = self.get_current_user()
@@ -39,9 +45,7 @@ class RequestHandler(IPythonHandler):
             user = githubAcc.get_user()
             repos = [r.name for r in githubAcc.get_user().get_repos()]
             if not 'plutons' in repos:
-                statusMsg["text"] = "creating repo..."
-                self.write(statusMsg)
-                self.flush()
+                self.status("creating repo...")
                 repo = user.create_repo("plutons", "notebooks created on pluto")
             else:
                 repo = user.get_repo("plutons")
@@ -86,7 +90,10 @@ class RequestHandler(IPythonHandler):
         
             reqId = db.q.insert_one({ 'file': f"{fullPath}", 
                                   'createdOn': datetime.now(), 
-                                  'isProcessed': False, 
+                                  'isProcessed': False,
+                                  'isEnqueued': False,
+                                  'procStat': 'request created',
+                                  'procStatOn': datetime.now(),
                                   'notebook': Binary(gzip.compress(fileContent)), 
                                   'githubTok': githubToken,
                                   'githubUser': githubUserName,
@@ -94,17 +101,19 @@ class RequestHandler(IPythonHandler):
                                 })
             qId = ObjectId(reqId.inserted_id)
 
-            statusMsg["text"] = "processing..."
-            self.write(statusMsg)
-            self.flush()
+            self.status("processing...")
 
             while True:
-                areWeThereYet = db.q.find_one({'_id': qId, 'isProcessed': True})
-                if areWeThereYet != None:
+                areWeThereYet = db.q.find_one({'_id': qId})
+                if areWeThereYet['isProcessed'] == True:
                     break
                 else:
-                    sleep(1)
+                    #pprint.pprint(areWeThereYet)
+                    mstatus = areWeThereYet['procStat']
+                    print(mstatus)
+                    self.status(mstatus)
                     print('>', end='', flush=True)
+                    sleep(1)
 
             os.remove(fullPath)
             fileContent = areWeThereYet['notebook']
@@ -113,15 +122,11 @@ class RequestHandler(IPythonHandler):
 
             #don't delete the request, you may need it for preventing abuse
             #db.q.delete_one({'_id': qId})
-
-            statusMsg["text"] = "done!"
-            statusMsg["finished"] = True;
-            self.finish(statusMsg)
+            
+            self.status("done!", finished=True)
         except Exception as exp:
             print(exp)
-            statusMsg["text"] = str(exp)
-            statusMsg["ok"] = False
-            self.finish(statusMsg)
+            self.status(str(exp), finished=True, ok=False)
 
 
 def _jupyter_server_extension_paths():
