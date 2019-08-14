@@ -1,17 +1,19 @@
 import pymongo
 from redis import Redis
 from rq import Queue
-from datetime import datetime
+from datetime import datetime, date
 from time import sleep
 from bson.objectid import ObjectId
 
 from Spawner import Spawn
 from Config import Config
+from Status import Status
 
 class Enqueuer:
     def __init__(self):
         self.config = Config()
         self.metaQ = Queue('pluto', connection=Redis('windows', 6379, db=1), default_timeout=1*3600)
+        self.status = Status()
 
         client = pymongo.MongoClient(f"mongodb+srv://explorer:{self.config.MongoPass}@cluster0-eyzcm.mongodb.net/test?retryWrites=true&w=majority")
         self.db = client.plutoQ
@@ -30,6 +32,7 @@ class Enqueuer:
     
         qId = ObjectId(request['_id'])
         self.db.q.update_one({'_id': qId}, {'$set': {'isEnqueued': True, 'enqueuedOn': datetime.now()}})
+        self.status.Update(qId, 'queued')
         
         meta = {
             "id": str(request['_id']),
@@ -47,7 +50,7 @@ enqueuer = Enqueuer()
 while True:
     try:
         enqueuer.Loop()
-        enqueuer.Cleanup()
+        #enqueuer.Cleanup()
         print(datetime.now())
     except Exception as exp:
         print(exp)
