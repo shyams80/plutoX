@@ -10,6 +10,7 @@ import shutil
 
 from ContainerManager import ContainerManager
 from Config import Config
+from Status import Status
 from bson.objectid import ObjectId
 
 class Spawner:
@@ -18,6 +19,7 @@ class Spawner:
         client = pymongo.MongoClient(f"mongodb+srv://explorer:{self.config.MongoPass}@cluster0-eyzcm.mongodb.net/test?retryWrites=true&w=majority")
         self.db = client.plutoQ
         self.cm = ContainerManager()
+        self.status = Status()
         
     def insertRef(self):
         nbDoc = nbformat.read(self.nbFileName, as_version=4)
@@ -54,13 +56,17 @@ class Spawner:
     def Execute(self, meta):
         print(meta)
         
+        qId = ObjectId(meta['id'])
         print('acquiring egg')
-        egg = self.cm.GetProcessor(meta['githubUser'])
+        self.status.Update(qId, 'acquiring egg')
+        
+        egg = self.cm.GetProcessor(qId, meta['githubUser'])
     
-        request = self.db.q.find_one({'_id': ObjectId(meta['id'])})
+        request = self.db.q.find_one({'_id': qId})
         
         githubUserName = request['githubUser']
         print(f"processing for: {githubUserName}")
+        self.status.Update(qId, 'processing')
         
         githubAcc = Github(request['githubTok'])
         user = githubAcc.get_user()
@@ -90,13 +96,9 @@ class Spawner:
         
         egg.files.recursive_put(self.plutoPath, "/home/pluto/")
         
-        #with open(self.nbFileName, "rb") as f:
-        #    content = f.read()
-            #egg.files.put(f"/home/pluto/{self.nbFileName}", content)
-            
-    
         print(f"executing in egg")
-        ret = egg.execute(shlex.split(f"jupyter nbconvert --to notebook --execute /home/pluto/{githubFileName} --inplace --allow-errors"))
+        self.status.Update(qId, 'executing in egg')
+        ret = egg.execute(shlex.split(f"jupyter nbconvert --to notebook --execute /home/pluto/{githubFileName} --inplace --allow-errors --ExecutePreprocessor.timeout=1200"))
         print(ret.exit_code)
         
         resp = egg.files.get(f"/home/pluto/{githubFileName}")
@@ -138,7 +140,9 @@ class Spawner:
     
         if tooBig:
             print("file is too big!")
-            cmdLine = f"sudo -E -H -u pluto jupyter nbconvert --to markdown --execute {self.nbFileName} --allow-errors"
+            self.status.Update(qId, 'file is too big!')
+            
+            cmdLine = f"jupyter nbconvert --to markdown --execute /home/pluto/{githubFileName} --allow-errors --ExecutePreprocessor.timeout=1200"
             cpi = subprocess.run(shlex.split(cmdLine), env=os.environ, errors=True)
             filePattern = self.nbFileName.replace(".ipynb", "")
     
@@ -148,7 +152,8 @@ class Spawner:
     
         shutil.rmtree(self.plutoPath)
     
-        self.db.q.update_one({'_id': ObjectId(meta['id'])}, {'$set': {'isProcessed': True, 'processedOn': datetime.now(), 'notebook': gzip.compress(outFileContent)}})
+        self.db.q.update_one({'_id': qId}, {'$set': {'isProcessed': True, 'processedOn': datetime.now(), 'notebook': gzip.compress(outFileContent)}})
+        self.status.Update(qId, 'finished')
 
 def Spawn(meta):
     if meta == None:

@@ -1,24 +1,33 @@
 import pymongo
 from redis import Redis
 from rq import Queue
-from datetime import datetime
+from datetime import datetime, date, timedelta
 from time import sleep
 from bson.objectid import ObjectId
 
 from Spawner import Spawn
 from Config import Config
+from Status import Status
+from ContainerManager import ContainerManager
 
 class Enqueuer:
     def __init__(self):
         self.config = Config()
         self.metaQ = Queue('pluto', connection=Redis('windows', 6379, db=1), default_timeout=1*3600)
+        self.status = Status()
 
         client = pymongo.MongoClient(f"mongodb+srv://explorer:{self.config.MongoPass}@cluster0-eyzcm.mongodb.net/test?retryWrites=true&w=majority")
         self.db = client.plutoQ
+        self.cm = ContainerManager()
 
     def Cleanup(self):
-        dmRet = self.db.q.delete_many({'$and': [ { '$or': [{'githubUser': 'shyams80'}, {'githubUser': 'stockviz'}] }, {'isProcessed': True} ]})
-        print(f"delete {dmRet.deleted_count} from mongo queue")
+        cutoff = datetime.now() - timedelta(days=30)
+        dmRet = self.db.q.delete_many({ 'createdOn' : {'$lt': cutoff } })
+        print(f"deleted {dmRet.deleted_count} from mongo queue")
+        
+        activeUsers = self.db.q.distinct('githubUser')
+        self.cm.KeepOnly(activeUsers)
+        
 
     def Queue(self, meta):
         self.metaQ.enqueue(Spawn, meta, result_ttl=0)
@@ -30,6 +39,7 @@ class Enqueuer:
     
         qId = ObjectId(request['_id'])
         self.db.q.update_one({'_id': qId}, {'$set': {'isEnqueued': True, 'enqueuedOn': datetime.now()}})
+        self.status.Update(qId, 'queued')
         
         meta = {
             "id": str(request['_id']),
