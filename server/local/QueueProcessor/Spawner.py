@@ -98,7 +98,7 @@ class Spawner:
         
         print(f"executing in egg")
         self.status.Update(qId, 'executing in egg')
-        ret = egg.execute(shlex.split(f"jupyter nbconvert --to notebook --execute /home/pluto/{githubFileName} --inplace --allow-errors"))
+        ret = egg.execute(shlex.split(f"jupyter nbconvert --to notebook --execute /home/pluto/{githubFileName} --inplace --allow-errors --ExecutePreprocessor.timeout=1200"))
         print(ret.exit_code)
         
         resp = egg.files.get(f"/home/pluto/{githubFileName}")
@@ -142,7 +142,7 @@ class Spawner:
             print("file is too big!")
             self.status.Update(qId, 'file is too big!')
             
-            cmdLine = f"sudo -E -H -u pluto jupyter nbconvert --to markdown --execute {self.nbFileName} --allow-errors --ExecutePreprocessor.timeout=600"
+            cmdLine = f"jupyter nbconvert --to markdown --execute /home/pluto/{githubFileName} --allow-errors --ExecutePreprocessor.timeout=1200"
             cpi = subprocess.run(shlex.split(cmdLine), env=os.environ, errors=True)
             filePattern = self.nbFileName.replace(".ipynb", "")
     

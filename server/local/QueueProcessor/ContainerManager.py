@@ -22,6 +22,14 @@ class ContainerManager:
         except pylxd.exceptions.NotFound:
             pass
         
+    def KeepOnly(self, githubUserNames):
+        existingContainers = [n.name for n in self.client.containers.all()]
+        existingContainers.remove('goose')
+        toDelete = set(existingContainers).difference(set(githubUserNames))
+        for td in toDelete:
+            self.DeleteProcessor(td)
+            
+        
     def GetProcessor(self, qId, githubUserName):
         egg = None
         try:
@@ -34,7 +42,7 @@ class ContainerManager:
             templates  = [t for t in images if len(t.aliases) > 0 and t.aliases[0]['name'] == 'goose']
             #if no template is found, create one from goose
             if len(templates) == 0:
-                self.status.Update(qId, 'cloning the goose')
+                self.status.Update(qId, 'cloning the goose... can take a while')
                 goose = self.client.containers.get('goose')
                 if goose.state().status_code != 102:
                     goose.stop(wait=True)
@@ -55,7 +63,7 @@ class ContainerManager:
                     }
                 }
             
-            self.status.Update(qId, 'creating egg')
+            self.status.Update(qId, 'creating egg... can take a while')
             egg = self.client.containers.create(dna, wait=True)
             egg.start(wait=True)
             self.status.Update(qId, 'egg laid')
