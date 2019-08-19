@@ -2,6 +2,7 @@ import pylxd
 import socket
 from Config import Config
 from Status import Status
+from bson.objectid import ObjectId
 
 class ContainerManager:
     def __init__(self):
@@ -14,6 +15,8 @@ class ContainerManager:
         
         
     def DeleteProcessor(self, githubUserName):
+        if githubUserName == "goose":
+            raise Exception("maverick!")
         try:
             cntnr = self.client.containers.get(githubUserName)
             if cntnr.state().status_code != 102:
@@ -31,16 +34,16 @@ class ContainerManager:
             
         
     def GetProcessor(self, qId, githubUserName):
+        if githubUserName == "goose":
+            raise Exception("maverick!")
+        
         egg = None
         try:
-            egg = self.client.containers.get(githubUserName)
-            if egg.state().status_code == 102:
-                egg.start(wait=True)
-            self.status.Update(qId, 'egg initialized')
-        except pylxd.exceptions.NotFound:
+            #first check if goose's egg exists
             images = self.client.images.all()
             templates  = [t for t in images if len(t.aliases) > 0 and t.aliases[0]['name'] == 'goose']
-            #if no template is found, create one from goose
+            
+            #the goose image is deleted if there has been an update to pluto or new libraries are installed
             if len(templates) == 0:
                 self.status.Update(qId, 'cloning the goose... can take a while')
                 goose = self.client.containers.get('goose')
@@ -50,9 +53,24 @@ class ContainerManager:
                 template.add_alias('goose', 'lays golden eggs')
                 goose.start(wait=True)
                 self.status.Update(qId, 'goose is loose!')
-            else:
-                template = templates[0]
-    
+                
+                images = self.client.images.all()
+                templates  = [t for t in images if len(t.aliases) > 0 and t.aliases[0]['name'] == 'goose']
+
+                
+            template = templates[0]
+            egg = self.client.containers.get(githubUserName)
+            
+            #if the egg was created before the goose image, delete it and re-create
+            if egg.created_at < template.uploaded_at:
+                self.DeleteProcessor(githubUserName)
+                raise pylxd.exceptions.NotFound(response = "redo")
+            
+            if egg.state().status_code == 102:
+                egg.start(wait=True)
+            self.status.Update(qId, 'egg initialized')
+        except pylxd.exceptions.NotFound:
+            #create an egg from the goose image
             dna = {
                 "ephemeral": False,
                 "name": githubUserName,
@@ -86,5 +104,6 @@ class ContainerManager:
 
 
 #cm = ContainerManager()
-#cm.GetProcessor("shyams80")
+#cm.GetProcessor(ObjectId('5d526abde7ccfb4adf63d359'), "shyams80")
 #cm.DeleteProcessor("shyams80")
+
