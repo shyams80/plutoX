@@ -14,7 +14,6 @@ class Enqueuer:
     def __init__(self):
         self.config = Config()
         self.metaQ = Queue('pluto', connection=Redis('windows', 6379, db=1), default_timeout=1*3600)
-        self.failedQ = Queue('failed', connection=Redis('windows', 6379, db=1))
         self.status = Status()
 
         client = pymongo.MongoClient(f"mongodb+srv://explorer:{self.config.MongoPass}@cluster0-eyzcm.mongodb.net/test?retryWrites=true&w=majority")
@@ -52,22 +51,23 @@ class Enqueuer:
         self.Queue(meta)
         
     def FailLoop(self):
-        failedJobs = self.failedQ.jobs
-        print(f"total number of failed jobs: {len(failedJobs)}")
+        print(f"total number of failed jobs: {self.metaQ.failed_job_registry.count}")
         
-        for failedJob in failedJobs:
+        for failedId in self.metaQ.failed_job_registry.get_job_ids():
+            failedJob = self.metaQ.fetch_job(failedId)
             failedMeta = failedJob.args[0]
             print(failedMeta)
             qId = ObjectId(failedMeta['id'])
             self.db.q.update_one({'_id': qId}, {'$set': {'isProcessed': True, 'processedOn': datetime.now()}})
             self.status.Update(qId, 'system failure. try again!')
-            self.failedQ.remove(failedMeta)
+            self.metaQ.remove(failedId)
+            self.metaQ.failed_job_registry.remove(failedJob)
 
 enqueuer = Enqueuer()
 #meta = {'id': '5d526abde7ccfb4adf63d359', 'githubUser': 'shyams80'}
 #enqueuer.Queue(meta)
 #enqueuer.Cleanup()
-#enqueuer.FailLoop()
+enqueuer.FailLoop()
 
 while True:
     try:

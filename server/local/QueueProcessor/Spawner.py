@@ -7,7 +7,7 @@ import nbformat
 import subprocess
 from datetime import datetime
 import shutil
-
+from pprint import pprint
 from ContainerManager import ContainerManager
 from Config import Config
 from Status import Status
@@ -52,6 +52,23 @@ class Spawner:
                 textLength = textLength + len(nbOut['text'])
     
         return textLength
+    
+    def upsertGithub(self, diskFileName, githubFileName):
+        print(f"upserting: {diskFileName} to {githubFileName}")
+        with open(diskFileName, mode='rb') as file:
+            outFileContent = file.read()
+    
+        try:
+            fileContent = self.repo.get_contents(githubFileName)
+            self.repo.update_file(githubFileName, "response", outFileContent, fileContent.sha)
+        except Exception as exp:
+            print(exp)
+            if exp.status == 404:
+                try:
+                    self.repo.create_file(githubFileName, "response", outFileContent)
+                except Exception as exp2:
+                    print("Error creating file on github: " + githubFileName)
+                    print(exp2)
         
     def Execute(self, meta):
         print(meta)
@@ -83,6 +100,7 @@ class Spawner:
         notebook = gzip.decompress(request['notebook'])
         
         githubFileName = fullPath[fullPath.rfind('/')+1:]
+        githubPath = fullPath[:fullPath.rfind('/')]
     
         self.nbFileName = self.plutoPath + githubFileName
         print(f"processing notebook: {self.nbFileName}")
@@ -98,14 +116,11 @@ class Spawner:
         
         print(f"executing in egg")
         self.status.Update(qId, 'executing in egg')
-        ret = egg.execute(shlex.split(f"jupyter nbconvert --to notebook --execute /home/pluto/{githubFileName} --inplace --allow-errors --ExecutePreprocessor.timeout=1200"))
-        print(ret.exit_code)
+        egg.execute(shlex.split(f"jupyter nbconvert --to notebook --execute /home/pluto/{githubFileName} --inplace --allow-errors --ExecutePreprocessor.timeout=1200"))
         
         resp = egg.files.get(f"/home/pluto/{githubFileName}")
         with open(self.nbFileName, mode='wb') as file:
             file.write(resp)
-        
-        egg.files.delete(f"/home/pluto/{githubFileName}")
         
         textLength = self.getOutputLength()
         print(f"total output length: {textLength}")
@@ -142,14 +157,25 @@ class Spawner:
             print("file is too big!")
             self.status.Update(qId, 'file is too big!')
             
-            cmdLine = f"jupyter nbconvert --to markdown --execute /home/pluto/{githubFileName} --allow-errors --ExecutePreprocessor.timeout=1200"
-            cpi = subprocess.run(shlex.split(cmdLine), env=os.environ, errors=True)
-            filePattern = self.nbFileName.replace(".ipynb", "")
+            egg.execute(shlex.split(f"jupyter nbconvert --to markdown --execute /home/pluto/{githubFileName} --allow-errors --ExecutePreprocessor.timeout=1200"))
+            
+            filePattern = githubFileName.replace(".ipynb", "")
+            
+            egg.execute(shlex.split(f"./tard.sh {filePattern}"))
+            
+            resp = egg.files.get(f"/home/pluto/{filePattern}.tar.gz")
+            with open(f"{self.plutoPath}{filePattern}.tar.gz", mode='wb') as file:
+                file.write(resp)
+                
+            subprocess.run(shlex.split(f"tar xvf {self.plutoPath}{filePattern}.tar.gz -C {self.plutoPath}"), env=os.environ, errors=True)
+                
+            self.upsertGithub(f"{self.plutoPath}{filePattern}.md", f"{githubPath}/{filePattern}.md")
+            
+            if os.path.isdir(f"{self.plutoPath}{filePattern}_files"):
+                for fname in os.listdir(f"{self.plutoPath}{filePattern}_files"):
+                    self.upsertGithub(f"{self.plutoPath}{filePattern}_files/{fname}", f"{githubPath}/{filePattern}_files/" + fname)
     
-            self.upsertGithub(filePattern + ".md", self.repo)
-            for fname in os.listdir(filePattern + "_files"):
-                self.upsertGithub(filePattern + "_files/" + fname, self.repo)
-    
+        egg.files.delete(f"/home/pluto/{githubFileName}")
         shutil.rmtree(self.plutoPath)
     
         self.db.q.update_one({'_id': qId}, {'$set': {'isProcessed': True, 'processedOn': datetime.now(), 'notebook': gzip.compress(outFileContent)}})
@@ -165,5 +191,5 @@ def Spawn(meta):
     spawn.Execute(meta)
     
 
-#meta = {'id': '5d526abde7ccfb4adf63d359', 'githubUser': 'shyams80'}
+#meta = {'id': '5d5bd72256e4cdd3b6189e48', 'githubUser': 'stockviz'}
 #Spawn(meta)
