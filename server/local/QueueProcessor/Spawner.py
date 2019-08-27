@@ -161,6 +161,7 @@ class Spawner:
             
             filePattern = githubFileName.replace(".ipynb", "")
             
+            self.status.Update(qId, 'creating markdown...')
             egg.execute(shlex.split(f"./tard.sh {filePattern}"))
             
             resp = egg.files.get(f"/home/pluto/{filePattern}.tar.gz")
@@ -168,10 +169,12 @@ class Spawner:
                 file.write(resp)
                 
             subprocess.run(shlex.split(f"tar xvf {self.plutoPath}{filePattern}.tar.gz -C {self.plutoPath}"), env=os.environ, errors=True)
-                
+            
+            self.status.Update(qId, 'uploading markdown...')    
             self.upsertGithub(f"{self.plutoPath}{filePattern}.md", f"{githubPath}/{filePattern}.md")
             
             if os.path.isdir(f"{self.plutoPath}{filePattern}_files"):
+                self.status.Update(qId, 'uploading images...')
                 for fname in os.listdir(f"{self.plutoPath}{filePattern}_files"):
                     self.upsertGithub(f"{self.plutoPath}{filePattern}_files/{fname}", f"{githubPath}/{filePattern}_files/" + fname)
     

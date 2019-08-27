@@ -21,7 +21,7 @@ class ContainerManager:
             cntnr = self.client.containers.get(githubUserName)
             if cntnr.state().status_code != 102:
                 cntnr.stop(wait=True)
-            cntnr.delete()
+            cntnr.delete(wait=True)
         except pylxd.exceptions.NotFound:
             pass
         
@@ -81,7 +81,7 @@ class ContainerManager:
                     }
                 }
             
-            self.status.Update(qId, 'creating egg... can take a while')
+            self.status.Update(qId, 'laying an egg... can take a while')
             egg = self.client.containers.create(dna, wait=True)
             egg.start(wait=True)
             self.status.Update(qId, 'egg laid')
